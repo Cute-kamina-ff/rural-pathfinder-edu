@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { BookOpen, Users, GraduationCap, Star, Award, Target } from "lucide-react";
-import eduQuestLogo from "@/assets/eduquest icon.png";
+import eduQuestLogo from "@/assets/EduQuest Icon.png";
 import { Footer } from "@/components/ui/footer";
 
 interface WelcomePageProps {
@@ -139,7 +139,9 @@ const WelcomePage = ({ onGetStarted }: WelcomePageProps) => {
           </div>
         </div>
       </div>
-      <Footer />
+      <footer className="py-6 px-4 text-center text-sm text-muted-foreground">
+        <p>© 2024 EduQuest. Empowering rural education through gamified learning.</p>
+      </footer>
     </div>
   );
 };
