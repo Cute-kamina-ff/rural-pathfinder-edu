@@ -3,35 +3,79 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { supabase } from "@/integrations/supabase/client";
+import { User, Session } from '@supabase/supabase-js';
 import WelcomePage from "./components/WelcomePage";
-import AuthPage from "./components/AuthPage"; 
+import LoginPage from "./pages/Login";
+import RegisterPage from "./pages/Register";
 import Dashboard from "./components/Dashboard";
 import QuizPage from "./components/QuizPage";
+import GamesSection from "./components/GamesSection";
+import ReadingSection from "./components/ReadingSection";
+import TeacherDashboard from "./components/TeacherDashboard";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
 
-type AppState = 'welcome' | 'auth' | 'dashboard' | 'quiz';
+type AppState = 'welcome' | 'login' | 'register' | 'dashboard' | 'quiz' | 'games' | 'reading' | 'teacher-dashboard';
 
 const App = () => {
-  // Initialize state from localStorage if available
-  const savedUser = JSON.parse(localStorage.getItem('user') || 'null');
-  const [currentState, setCurrentState] = useState<AppState>(savedUser ? 'dashboard' : 'welcome');
-  const [userType, setUserType] = useState<'student' | 'teacher'>(savedUser?.type || 'student');
-  const [userData, setUserData] = useState<any>(savedUser?.data || null);
+  const [user, setUser] = useState<User | null>(null);
+  const [session, setSession] = useState<Session | null>(null);
+  const [userProfile, setUserProfile] = useState<any>(null);
+  const [currentState, setCurrentState] = useState<AppState>('welcome');
   const [selectedSubject, setSelectedSubject] = useState<string>('');
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    // Set up auth state listener
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        setSession(session);
+        setUser(session?.user ?? null);
+        
+        if (session?.user) {
+          // Fetch user profile
+          setTimeout(async () => {
+            const { data: profile } = await supabase
+              .from('profiles')
+              .select('*')
+              .eq('user_id', session.user.id)
+              .single();
+            
+            if (profile) {
+              setUserProfile(profile);
+              setCurrentState(profile.user_type === 'teacher' ? 'teacher-dashboard' : 'dashboard');
+            }
+          }, 0);
+        } else {
+          setUserProfile(null);
+          setCurrentState('welcome');
+        }
+        
+        setLoading(false);
+      }
+    );
+
+    // Check for existing session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+      setUser(session?.user ?? null);
+      if (!session) {
+        setLoading(false);
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
 
   const handleGetStarted = () => {
-    setCurrentState('auth');
+    setCurrentState('login');
   };
 
-  const handleLogin = (type: 'student' | 'teacher', data: any) => {
-    setUserType(type);
-    setUserData(data);
-    setCurrentState('dashboard');
-    // Save user data to localStorage for persistence
-    localStorage.setItem('user', JSON.stringify({ type, data }));
+  const handleShowRegister = () => {
+    setCurrentState('register');
   };
 
   const handleSubjectSelect = (subject: string) => {
@@ -39,45 +83,53 @@ const App = () => {
     setCurrentState('quiz');
   };
 
+  const handleShowGames = () => {
+    setCurrentState('games');
+  };
+
+  const handleShowReading = () => {
+    setCurrentState('reading');
+  };
+
   const handleQuizComplete = async (score: number, coins: number, badge: string) => {
-    if (userData?.id) {
+    if (userProfile?.id) {
       try {
-        const response = await fetch('http://localhost:4000/api/quiz-results', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            studentId: userData.id,
+        // Save quiz result to Supabase
+        const { error } = await supabase
+          .from('quiz_results')
+          .insert([{
+            student_id: userProfile.id,
+            quiz_id: selectedSubject, // This should be proper quiz ID
             score,
-            coins,
+            total_points: 100, // This should be calculated properly
+            coins_earned: coins,
             badge,
-          }),
-        });
-        
-        if (!response.ok) {
-          throw new Error('Failed to save quiz results');
-        }
-        
-        // Update user data with new coins/badges if needed
-        const updatedData = { ...userData, coins: (userData.coins || 0) + coins };
-        setUserData(updatedData);
-        localStorage.setItem('user', JSON.stringify({ type: userType, data: updatedData }));
+          }]);
+
+        if (error) throw error;
+
+        // Update user coins
+        const { error: updateError } = await supabase
+          .from('profiles')
+          .update({ coins: (userProfile.coins || 0) + coins })
+          .eq('id', userProfile.id);
+
+        if (updateError) throw updateError;
+
+        // Update local profile
+        setUserProfile(prev => ({ ...prev, coins: (prev.coins || 0) + coins }));
       } catch (error) {
         console.error('Error saving quiz results:', error);
       }
     }
   };
 
-  const handleLogout = () => {
-    setCurrentState('welcome');
-    setUserData(null);
-    setUserType('student');
-    localStorage.removeItem('user');
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
   };
 
   const handleBackToDashboard = () => {
-    setCurrentState('dashboard');
+    setCurrentState(userProfile?.user_type === 'teacher' ? 'teacher-dashboard' : 'dashboard');
   };
 
   const handleBackToWelcome = () => {
@@ -85,32 +137,49 @@ const App = () => {
   };
 
   const renderCurrentState = () => {
+    if (loading) {
+      return (
+        <div className="min-h-screen bg-gradient-to-br from-background to-muted flex items-center justify-center">
+          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-primary"></div>
+        </div>
+      );
+    }
+
     switch (currentState) {
       case 'welcome':
-        return <WelcomePage onGetStarted={handleGetStarted} />;
-      case 'auth':
-        return <AuthPage onBack={handleBackToWelcome} onLogin={handleLogin} />;
+        return <WelcomePage onGetStarted={handleGetStarted} onRegister={handleShowRegister} />;
+      case 'login':
+        return <LoginPage onBack={handleBackToWelcome} />;
+      case 'register':
+        return <RegisterPage onBack={handleBackToWelcome} />;
       case 'dashboard':
         return (
           <Dashboard 
-            userType={userType}
-            userData={userData}
+            userProfile={userProfile}
             onSubjectSelect={handleSubjectSelect}
+            onShowGames={handleShowGames}
+            onShowReading={handleShowReading}
             onLogout={handleLogout}
           />
         );
+      case 'teacher-dashboard':
+        return <TeacherDashboard teacherData={userProfile} />;
       case 'quiz':
         return (
           <QuizPage
-            userId={userData?.id}
+            userId={userProfile?.id}
             subject={selectedSubject}
-            userClass={userData?.class || '6'}
+            userClass={userProfile?.class || '6'}
             onBack={handleBackToDashboard}
             onComplete={handleQuizComplete}
           />
         );
+      case 'games':
+        return <GamesSection onBack={handleBackToDashboard} />;
+      case 'reading':
+        return <ReadingSection onBack={handleBackToDashboard} />;
       default:
-        return <WelcomePage onGetStarted={handleGetStarted} />;
+        return <WelcomePage onGetStarted={handleGetStarted} onRegister={handleShowRegister} />;
     }
   };
 

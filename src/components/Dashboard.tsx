@@ -20,13 +20,14 @@ import {
 } from "lucide-react";
 
 interface DashboardProps {
-  userType: 'student' | 'teacher';
-  userData: any;
+  userProfile: any;
   onSubjectSelect: (subject: string) => void;
+  onShowGames: () => void;
+  onShowReading: () => void;
   onLogout: () => void;
 }
 
-const Dashboard = ({ userType, userData, onSubjectSelect, onLogout }: DashboardProps) => {
+const Dashboard = ({ userProfile, onSubjectSelect, onShowGames, onShowReading, onLogout }: DashboardProps) => {
   const [selectedLanguage, setSelectedLanguage] = useState('english');
 
   // Language translations
@@ -169,29 +170,20 @@ const Dashboard = ({ userType, userData, onSubjectSelect, onLogout }: DashboardP
     const updatedStats = updateUserStats({}); // This will handle daily streak
     
     const fetchStats = async () => {
-      if (!userData?.id) return;
-      try {
-        const res = await fetch(`http://localhost:4000/api/results/${userData.id}`);
-        const results = await res.json();
-        // Aggregate stats from results
-        const coins = updatedStats.coins;
-        const badges = results.length;
-        const level = Math.floor(coins / 100);
-        const streak = updatedStats.streak;
-        const progress = Math.min(100, coins / 10);
-        setStudentStats({ coins, badges, level, streak, progress });
-      } catch (err) {
-        setStudentStats({ 
-          coins: updatedStats.coins, 
-          badges: 0, 
-          level: Math.floor(updatedStats.coins / 100), 
-          streak: updatedStats.streak, 
-          progress: Math.min(100, updatedStats.coins / 10) 
-        });
-      }
+      if (!userProfile?.id) return;
+      
+      // Use Supabase to fetch user stats
+      const coins = userProfile.coins || 0;
+      const badges = userProfile.badges || 0;
+      const level = userProfile.level || 1;
+      const streak = userProfile.streak || 0;
+      const progress = Math.min(100, coins / 10);
+      
+      setStudentStats({ coins, badges, level, streak, progress });
     };
+    
     fetchStats();
-  }, [userData]);
+  }, [userProfile]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background to-muted p-4">
@@ -200,10 +192,10 @@ const Dashboard = ({ userType, userData, onSubjectSelect, onLogout }: DashboardP
         <div className="flex justify-between items-center mb-8">
           <div>
             <h1 className="text-3xl font-bold text-primary mb-2">
-              {t.welcome}, {userData.name}! 
+              {t.welcome}, {userProfile?.name}! 
             </h1>
             <p className="text-muted-foreground">
-              {userType === 'student' ? t.readyForAdventure : t.monitorProgress}
+              {userProfile?.user_type === 'student' ? t.readyForAdventure : t.monitorProgress}
             </p>
           </div>
           
@@ -225,7 +217,7 @@ const Dashboard = ({ userType, userData, onSubjectSelect, onLogout }: DashboardP
           </div>
         </div>
 
-        {userType === 'student' && (
+        {userProfile?.user_type === 'student' && (
           <>
             {/* Student Stats */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
@@ -283,7 +275,7 @@ const Dashboard = ({ userType, userData, onSubjectSelect, onLogout }: DashboardP
         {/* Subjects Grid */}
         <div className="mb-8">
           <h2 className="text-2xl font-bold mb-6">
-            {userType === 'student' ? t.chooseSubject : t.subjectOverview}
+            {userProfile?.user_type === 'student' ? t.chooseSubject : t.subjectOverview}
           </h2>
           
           <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -306,7 +298,7 @@ const Dashboard = ({ userType, userData, onSubjectSelect, onLogout }: DashboardP
                   
                   <div className="flex justify-center gap-2">
                     <Badge variant="secondary" className="text-xs">
-                      {userType === 'student' ? `10 ${t.mcqs}` : t.manage}
+                      {userProfile?.user_type === 'student' ? `10 ${t.mcqs}` : t.manage}
                     </Badge>
                     <Badge variant="outline" className="text-xs">
                       {t.interactive}
@@ -318,8 +310,49 @@ const Dashboard = ({ userType, userData, onSubjectSelect, onLogout }: DashboardP
           </div>
         </div>
 
+        {/* Games and Reading Buttons for Students */}
+        {userProfile?.user_type === 'student' && (
+          <div className="mb-8">
+            <div className="grid md:grid-cols-2 gap-6">
+              <Card 
+                className="p-6 hover:scale-105 transition-transform duration-300 cursor-pointer bg-gradient-to-br from-green-500/10 to-green-600/10"
+                onClick={onShowGames}
+              >
+                <div className="flex items-center gap-4">
+                  <div className="bg-green-500 rounded-2xl w-16 h-16 flex items-center justify-center">
+                    <span className="text-2xl">🎮</span>
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-semibold">Educational Games</h3>
+                    <p className="text-muted-foreground text-sm">
+                      Play fun games while learning
+                    </p>
+                  </div>
+                </div>
+              </Card>
+              
+              <Card 
+                className="p-6 hover:scale-105 transition-transform duration-300 cursor-pointer bg-gradient-to-br from-blue-500/10 to-blue-600/10"
+                onClick={onShowReading}
+              >
+                <div className="flex items-center gap-4">
+                  <div className="bg-blue-500 rounded-2xl w-16 h-16 flex items-center justify-center">
+                    <BookOpen className="w-8 h-8 text-white" />
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-semibold">Reading Library</h3>
+                    <p className="text-muted-foreground text-sm">
+                      Explore stories and articles
+                    </p>
+                  </div>
+                </div>
+              </Card>
+            </div>
+          </div>
+        )}
+
         {/* Recent Activity or Teacher Actions */}
-        {userType === 'teacher' && (
+        {userProfile?.user_type === 'teacher' && (
           <Card className="p-6">
             <h3 className="text-lg font-semibold mb-4">{t.quickActions}</h3>
             <div className="grid md:grid-cols-3 gap-4">

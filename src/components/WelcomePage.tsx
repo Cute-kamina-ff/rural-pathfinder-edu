@@ -7,9 +7,10 @@ import { Footer } from "@/components/ui/footer";
 
 interface WelcomePageProps {
   onGetStarted: () => void;
+  onRegister: () => void;
 }
 
-const WelcomePage = ({ onGetStarted }: WelcomePageProps) => {
+const WelcomePage = ({ onGetStarted, onRegister }: WelcomePageProps) => {
   const [isFlipping, setIsFlipping] = useState(false);
 
   const handleGetStarted = () => {
@@ -119,14 +120,23 @@ const WelcomePage = ({ onGetStarted }: WelcomePageProps) => {
 
             {/* Call to Action */}
             <div className="text-center">
-              <Button 
-                onClick={handleGetStarted}
-                size="lg"
-                className="btn-hero px-8 py-4 text-lg font-semibold"
-              >
-                <Star className="w-5 h-5 mr-2" />
-                Start Your Quest
-              </Button>
+              <div className="space-x-4">
+                <Button 
+                  size="lg" 
+                  onClick={onGetStarted}
+                  className="bg-primary hover:bg-primary/90 text-primary-foreground px-8 py-3 text-lg font-semibold rounded-full shadow-lg hover:shadow-xl transition-all duration-300"
+                >
+                  Sign In
+                </Button>
+                <Button 
+                  size="lg" 
+                  variant="outline"
+                  onClick={onRegister}
+                  className="border-primary text-primary hover:bg-primary hover:text-primary-foreground px-8 py-3 text-lg font-semibold rounded-full transition-all duration-300"
+                >
+                  Register
+                </Button>
+              </div>
               <p className="text-sm text-muted-foreground mt-4">
                 Join thousands of students already learning with EduQuest
               </p>
